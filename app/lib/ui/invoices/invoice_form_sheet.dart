@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/customer_repository.dart';
 import '../../data/invoice_repository.dart';
+import '../../domain/currencies.dart';
 
 Future<void> showInvoiceForm(BuildContext context) {
   return showModalBottomSheet(
@@ -29,6 +30,9 @@ class _InvoiceFormSheetState extends ConsumerState<InvoiceFormSheet> {
   List<Map<String, dynamic>> _suggestions = [];
   final List<InvoiceLineInput> _lines = [];
   String? _error;
+  String _currency = 'USD';
+
+  static const _currencyCodes = Currencies.supported;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +48,15 @@ class _InvoiceFormSheetState extends ConsumerState<InvoiceFormSheet> {
           children: [
             Text('New invoice', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _currency,
+              decoration: const InputDecoration(labelText: 'Currency'),
+              items: [
+                for (final (code, symbol, _) in _currencyCodes)
+                  DropdownMenuItem(value: code, child: Text('$code ($symbol)')),
+              ],
+              onChanged: (v) => setState(() => _currency = v ?? 'USD'),
+            ),
             Autocomplete<Map<String, dynamic>>(
               displayStringForOption: (c) => c['name'] as String,
               fieldViewBuilder: (context, ctrl, focus, onSubmit) => TextField(
@@ -169,6 +182,7 @@ class _InvoiceFormSheetState extends ConsumerState<InvoiceFormSheet> {
       await ref.read(invoiceRepoProvider).create(
             customerId: _selectedCustomer!['id'] as String,
             lines: _lines,
+            currency: _currency,
           );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {

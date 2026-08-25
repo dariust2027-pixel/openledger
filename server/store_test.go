@@ -91,7 +91,7 @@ func TestPersistenceAcrossRestart(t *testing.T) {
 	if _, ok := s2.Auth(d.Token); !ok {
 		t.Fatal("device token lost after restart")
 	}
-	ops, cursor := s2.Pull(0, 100)
+	ops, cursor := s2.Pull(d, 0, 100)
 	if len(ops) != 1 || cursor == 0 {
 		t.Fatalf("ops lost after restart: %d ops, cursor %d", len(ops), cursor)
 	}

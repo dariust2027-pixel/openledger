@@ -4,6 +4,7 @@ import '../../ai/ai_settings.dart';
 import '../../ai/llm_provider.dart' show ProviderKind;
 import '../../sync/sync_engine.dart';
 import '../../theme/theme.dart';
+import 'data_tools_section.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -59,6 +60,10 @@ class SettingsScreen extends ConsumerWidget {
         const Divider(height: 32),
         Text('Sync', style: Theme.of(context).textTheme.titleMedium),
         const _SyncSection(),
+        const Divider(height: 32),
+        Text('Data & automation', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        const DataToolsSection(),
       ]),
     );
   }

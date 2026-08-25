@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/expense_repository.dart';
+import '../../domain/currencies.dart';
 
 Future<void> showExpenseForm(
   BuildContext context,
@@ -49,6 +50,7 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
   late final TextEditingController _vendorCtrl;
   late DateTime _date;
   late String _category;
+  late String _currency;
   bool _saving = false;
 
   @override
@@ -59,6 +61,7 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
     _vendorCtrl = TextEditingController(text: widget.prefillVendor ?? '');
     _date = widget.prefillDate ?? DateTime.now();
     _category = widget.prefillCategoryHint ?? 'other';
+    _currency = 'USD';
   }
 
   static const _categories = {
@@ -89,6 +92,7 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
           date: _date,
           vendor: _vendorCtrl.text.trim().isEmpty ? null : _vendorCtrl.text.trim(),
           categoryId: 'cat-${_category == 'office' ? 'office' : _category}',
+          currency: _currency,
         );
     if (mounted) Navigator.of(context).pop();
   }
@@ -127,6 +131,15 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
             decoration: const InputDecoration(labelText: 'Amount \$', prefixText: '\$'),
           ),
           const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _currency,
+            decoration: const InputDecoration(labelText: 'Currency'),
+            items: [
+              for (final (code, symbol, _) in Currencies.supported)
+                DropdownMenuItem(value: code, child: Text('$code ($symbol)')),
+            ],
+            onChanged: (v) => setState(() => _currency = v ?? 'USD'),
+          ),
           TextField(
             controller: _vendorCtrl,
             decoration: const InputDecoration(labelText: 'Vendor (optional)'),

@@ -24,11 +24,26 @@ dependencies:
   flutter_tts: ^4.2.0
   image_picker: ^1.1.2
   google_mlkit_text_recognition: ^0.15.0
+  file_selector: ^1.0.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  image_path: assets/icon/app_icon.png
+  android: launcher_icon
+  ios: true
+  adaptive_icon_background: "#14285A"
+  adaptive_icon_foreground: assets/icon/app_icon.png
+  windows:
+    generate: true
+    image_path: assets/icon/app_icon.png
+    icon_size: 256
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/

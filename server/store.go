@@ -17,8 +17,9 @@ type Store struct {
 	mu sync.Mutex
 
 	path     string
-	devices  map[string]Device // token -> device
-	ops      []Op              // ordered by Seq
+	devices  map[string]Device   // token -> device
+	accounts map[string]Account  // account id -> account
+	ops      []Op                // ordered by Seq, scoped by AccountID
 	seq      int64
 }
 
@@ -26,6 +27,7 @@ type Device struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Token     string `json:"token,omitempty"` // persisted so devices survive restarts
+	AccountID string `json:"account_id"`
 	CreatedAt int64  `json:"created_at"`
 }
 
@@ -40,13 +42,30 @@ type Op struct {
 	OpType    string          `json:"op_type"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
 	DeviceID  string          `json:"device_id"`
+	AccountID string          `json:"account_id,omitempty"`
 	Lamport   int64           `json:"lamport"`
 	Ts        int64           `json:"ts"`
 }
 
+const defaultAccountID = "acc_default"
+
 func NewStore(path string) *Store {
-	s := &Store{path: path, devices: map[string]Device{}}
+	s := &Store{
+		path:     path,
+		devices:  map[string]Device{},
+		accounts: map[string]Account{},
+	}
 	s.load()
+	if _, ok := s.accounts[defaultAccountID]; !ok {
+		// Self-hosted single-tenant default.
+		s.accounts[defaultAccountID] = Account{
+			ID:        defaultAccountID,
+			Name:      "default",
+			Plan:      PlanPro, // self-hosted = your hardware, your rules
+			AIMonth:   monthBucket(timeNow()),
+			CreatedAt: nowMillis(),
+		}
+	}
 	return s
 }
 
@@ -59,15 +78,19 @@ func (s *Store) load() {
 		return // fresh store
 	}
 	var snapshot struct {
-		Devices []Device `json:"devices"`
-		Ops     []Op     `json:"ops"`
-		Seq     int64    `json:"seq"`
+		Devices  []Device  `json:"devices"`
+		Accounts []Account `json:"accounts"`
+		Ops      []Op      `json:"ops"`
+		Seq      int64     `json:"seq"`
 	}
 	if json.Unmarshal(data, &snapshot) != nil {
 		return
 	}
 	for _, d := range snapshot.Devices {
 		s.devices[d.Token] = d
+	}
+	for _, a := range snapshot.Accounts {
+		s.accounts[a.ID] = a
 	}
 	s.ops = snapshot.Ops
 	s.seq = snapshot.Seq
@@ -81,11 +104,16 @@ func (s *Store) persistLocked() {
 	for _, d := range s.devices {
 		devices = append(devices, d)
 	}
+	accounts := make([]Account, 0, len(s.accounts))
+	for _, a := range s.accounts {
+		accounts = append(accounts, a)
+	}
 	snapshot := struct {
-		Devices []Device `json:"devices"`
-		Ops     []Op     `json:"ops"`
-		Seq     int64    `json:"seq"`
-	}{devices, s.ops, s.seq}
+		Devices  []Device  `json:"devices"`
+		Accounts []Account `json:"accounts"`
+		Ops      []Op      `json:"ops"`
+		Seq      int64     `json:"seq"`
+	}{devices, accounts, s.ops, s.seq}
 
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return
@@ -105,12 +133,22 @@ func randomToken(prefix string) string {
 }
 
 func (s *Store) RegisterDevice(name string) Device {
+	return s.RegisterDeviceForAccount(name, defaultAccountID)
+}
+
+// RegisterDeviceForAccount provisions a device under a tenant. Used by the
+// self-host flow (default account) and by the SaaS account signup endpoint.
+func (s *Store) RegisterDeviceForAccount(name, accountID string) Device {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, ok := s.accounts[accountID]; !ok {
+		accountID = defaultAccountID
+	}
 	d := Device{
 		ID:        randomToken("dev_"),
 		Name:      name,
 		Token:     randomToken("tok_"),
+		AccountID: accountID,
 		CreatedAt: nowMillis(),
 	}
 	s.devices[d.Token] = d
@@ -146,6 +184,7 @@ func (s *Store) Push(device Device, incoming []Op) (int64, int) {
 		s.seq++
 		o.Seq = s.seq
 		o.DeviceID = device.ID // stamped by server, not trusted from client
+		o.AccountID = device.AccountID
 		if o.ID == "" || o.Entity == "" || o.EntityID == "" || o.OpType == "" {
 			continue // reject malformed by skipping (client re-sends corrected)
 		}
@@ -156,8 +195,9 @@ func (s *Store) Push(device Device, incoming []Op) (int64, int) {
 	return s.seq, added
 }
 
-// Pull returns ops with Seq > cursor (oldest first), up to limit.
-func (s *Store) Pull(cursor int64, limit int) ([]Op, int64) {
+// Pull returns the caller's account ops with Seq > cursor (oldest first),
+// up to limit.
+func (s *Store) Pull(device Device, cursor int64, limit int) ([]Op, int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -167,6 +207,9 @@ func (s *Store) Pull(cursor int64, limit int) ([]Op, int64) {
 	out := make([]Op, 0, limit)
 	newCursor := cursor
 	for _, o := range s.ops {
+		if o.AccountID != device.AccountID {
+			continue
+		}
 		if o.Seq > cursor && len(out) < limit {
 			out = append(out, o)
 			if o.Seq > newCursor {

@@ -1,14 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../ai/assistant_controller.dart';
+import '../data/invoice_repository.dart' show invoiceRepoProvider;
+import '../data/recurring_repository.dart';
 import '../db/providers.dart';
 import 'command_bar.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Generate any due recurring invoices once per app start.
+    Future.microtask(() async {
+      try {
+        final recurring = ref.read(recurringRepoProvider);
+        final invoices = ref.read(invoiceRepoProvider);
+        await recurring.runDue(
+          ({required customerId, required lines, notes}) =>
+              invoices.create(customerId: customerId, lines: lines, notes: notes),
+        );
+      } catch (_) {/* never block startup */}
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final summaryAsync = ref.watch(_monthSummaryProvider);
 
     return SafeArea(

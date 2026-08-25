@@ -254,10 +254,10 @@ Windows build note: Flutter Windows target needs Visual Studio C++ workload (we'
 - Go server: device registration + bearer-token auth ✅
 - Op-log push/pull endpoints with cursors, idempotent by op-ID ✅
 - File-backed persistence, survives restarts; unit tests passing ✅
-- [ ] Client SyncEngine (push pending ops / pull remote ops, background timer)
-- [ ] Client idempotent op application (merge into local SQLite)
-- [ ] Server-side validation re-runs domain rules before accepting ops
-- [ ] Settings UI: server URL, pairing token, sync-now, last-sync status
+- [x] Client SyncEngine (push pending ops / pull remote ops, background timer)
+- [x] Client idempotent op application (merge into local SQLite)
+- [x] Server-side validation re-runs domain rules before accepting ops
+- [x] Settings UI: server URL, pairing token, sync-now, last-sync status
 - [ ] One-command self-host bundle (single binary + `openledger-server init`)
 
 ### Phase 5 — SaaS offering

@@ -47,11 +47,30 @@ func registerHandlers(mux *http.ServeMux, s *Store) {
 		func(w http.ResponseWriter, r *http.Request, dev Device) {
 			cursor := queryInt(r, "cursor")
 			limit := int(queryInt(r, "limit"))
-			ops, newCursor := s.Pull(cursor, limit)
+			ops, newCursor := s.Pull(dev, cursor, limit)
 			writeJSON(w, http.StatusOK, map[string]any{
 				"ops":        ops,
 				"new_cursor": newCursor,
 				"count":      len(ops),
+			})
+		})))
+
+	mux.HandleFunc("/v1/ai/proxy", requireMethod(http.MethodPost, withAuth(s, s.handleAIProxy)))
+
+	mux.HandleFunc("/v1/stripe/webhook", requireMethod(http.MethodPost, handleStripeWebhook(s)))
+
+	mux.HandleFunc("/v1/account", requireMethod(http.MethodGet, withAuth(s,
+		func(w http.ResponseWriter, r *http.Request, dev Device) {
+			a, ok := s.GetAccount(dev.AccountID)
+			if !ok {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "account not found"})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"account_id":       a.ID,
+				"plan":             a.Plan,
+				"ai_requests_used": a.AIRequestsUsed,
+				"ai_month":         a.AIMonth,
 			})
 		})))
 }
