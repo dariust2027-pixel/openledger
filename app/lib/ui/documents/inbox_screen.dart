@@ -39,7 +39,7 @@ class InboxScreen extends ConsumerWidget {
                               ? const Center(child: Icon(Icons.picture_as_pdf, size: 32))
                               : Image.file(File(f['path'] as String),
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const Center(
+                                  errorBuilder: (_, _, _) => const Center(
                                       child: Icon(Icons.description, size: 32))),
                         ),
                         Padding(
