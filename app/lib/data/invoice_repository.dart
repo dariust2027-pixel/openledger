@@ -2,16 +2,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../db/database.dart';
 import '../db/providers.dart';
 import 'customer_repository.dart' show newId, nowMs;
+import 'items_repository.dart';
 import 'ops.dart';
 
 /// Line item on an invoice (computed totals stored for reporting speed).
 class InvoiceLineInput {
+  final String? itemId; // linked inventory item — stock decremented on sale
   final String description;
   final double qty;
   final int unitPriceMinor; // minor units
   final double taxPercent;
 
   const InvoiceLineInput({
+    this.itemId,
     required this.description,
     this.qty = 1,
     required this.unitPriceMinor,
@@ -45,7 +48,9 @@ extension InvoiceStatusX on InvoiceStatus {
 
 class InvoiceRepository {
   final AppDatabase db;
-  InvoiceRepository(this.db);
+  final ItemRepository items;
+
+  InvoiceRepository(this.db) : items = ItemRepository(db);
 
   Stream<List<Map<String, dynamic>>> watchAll({int limit = 500}) =>
       db.watchRows('SELECT i.*, c.name AS customer_name FROM invoices i '
@@ -102,17 +107,21 @@ class InvoiceRepository {
       for (final l in lines) {
         final lineId = newId();
         await db.exec(
-          'INSERT INTO invoice_lines (id, invoice_id, description, qty, unit_price, '
-          'tax_percent, line_total, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          [lineId, id, l.description, l.qty, l.unitPriceMinor, l.taxPercent,
+          'INSERT INTO invoice_lines (id, invoice_id, item_id, description, qty, unit_price, '
+          'tax_percent, line_total, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [lineId, id, l.itemId, l.description, l.qty, l.unitPriceMinor, l.taxPercent,
            l.lineTotal, pos],
         );
         linePayloads.add({
-          'id': lineId, 'invoice_id': id, 'description': l.description,
-          'qty': l.qty, 'unit_price': l.unitPriceMinor, 'tax_percent': l.taxPercent,
-          'line_total': l.lineTotal, 'position': pos,
+          'id': lineId, 'invoice_id': id, 'item_id': l.itemId,
+          'description': l.description, 'qty': l.qty, 'unit_price': l.unitPriceMinor,
+          'tax_percent': l.taxPercent, 'line_total': l.lineTotal, 'position': pos,
         });
         pos++;
+      }
+      // Stock out: selling items reduces inventory.
+      for (final l in lines.where((l) => l.itemId != null)) {
+        await items.adjustStock(l.itemId!, -l.qty);
       }
       await logOp(db, entity: 'invoices', entityId: id, opType: 'create', payload: {
         'id': id, 'number': number, 'customer_id': customerId,

@@ -16,7 +16,7 @@ class AppDatabase extends GeneratedDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   // All schema lives in raw SQL (see schema.dart); drift only provides
   // connectivity, transactions and reactive queries here.
@@ -24,11 +24,24 @@ class AppDatabase extends GeneratedDatabase {
   Iterable<TableInfo<Table, DataClass>> get allTables => const [];
 
   @override
-  MigrationStrategy get migration => MigrationStrategy(onCreate: (m) async {
-        for (final sql in Schema.statements) {
-          await customStatement(sql);
-        }
-      });
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) async {
+          for (final sql in Schema.statements) {
+            await customStatement(sql);
+          }
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            for (final sql in Schema.statementsV2) {
+              try {
+                await customStatement(sql);
+              } catch (_) {
+                // ALTER may already exist on partially-upgraded DBs — idempotent.
+              }
+            }
+          }
+        },
+      );
 
   Future<T> getSetting<T>(String key, T fallback) async {
     final row = await customSelect(

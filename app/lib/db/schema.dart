@@ -177,6 +177,71 @@ class Schema {
     ('cat-sales',    'Sales',             'income',  0, 0);
 """;
 
+  /* ---------------------- v2: inventory & purchasing ---------------------- */
+
+  static const _vendors = '''
+  CREATE TABLE IF NOT EXISTS vendors (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    notes TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )''';
+
+  /// Polymorphic commercial documents:
+  /// quote | sales_order | purchase_order | bill
+  static const _documents = '''
+  CREATE TABLE IF NOT EXISTS documents (
+    id TEXT PRIMARY KEY,
+    doc_type TEXT NOT NULL,
+    number TEXT NOT NULL,
+    party_id TEXT NOT NULL,          -- customer (sales) or vendor (purchases)
+    status TEXT NOT NULL DEFAULT 'draft',
+    date TEXT NOT NULL,
+    due_date TEXT,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    subtotal INTEGER NOT NULL DEFAULT 0,
+    tax_total INTEGER NOT NULL DEFAULT 0,
+    total INTEGER NOT NULL DEFAULT 0,
+    notes TEXT,
+    converted_doc_id TEXT,           -- quote -> invoice link
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )''';
+
+  static const _documentLines = '''
+  CREATE TABLE IF NOT EXISTS document_lines (
+    id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    item_id TEXT,
+    description TEXT NOT NULL,
+    qty REAL NOT NULL DEFAULT 1,
+    unit_price INTEGER NOT NULL DEFAULT 0,
+    tax_percent REAL NOT NULL DEFAULT 0,
+    line_total INTEGER NOT NULL DEFAULT 0,
+    position INTEGER NOT NULL DEFAULT 0
+  )''';
+
+  static const _idxDocumentsType =
+      'CREATE INDEX IF NOT EXISTS idx_documents_type ON documents(doc_type, status)';
+  static const _idxDocumentLinesDoc =
+      'CREATE INDEX IF NOT EXISTS idx_document_lines_doc ON document_lines(document_id)';
+  static const _idxInvoiceLinesItem =
+      'CREATE INDEX IF NOT EXISTS idx_invoice_lines_item ON invoice_lines(item_id)';
+
+  static const statementsV2 = [
+    _vendors,
+    _documents,
+    _documentLines,
+    _idxDocumentsType,
+    _idxDocumentLinesDoc,
+    'ALTER TABLE invoice_lines ADD COLUMN item_id TEXT',
+    'ALTER TABLE payments ADD COLUMN doc_id TEXT',
+    _idxInvoiceLinesItem,
+  ];
+
   static const _idxInvoicesStatus =
       'CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status)';
   static const _idxInvoicesCustomer =
