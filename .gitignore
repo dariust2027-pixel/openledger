@@ -1,0 +1,28 @@
+# Flutter / Dart
+app/.dart_tool/
+app/.flutter-plugins*
+app/.packages
+app/build/
+app/windows/flutter/ephemeral/
+app/android/.gradle/
+app/ios/Pods/
+*.iml
+
+# Go
+server/openledger-server
+server/openledger-server.exe
+server/openledger-data.json
+server/data/
+*.test
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Secrets — never commit
+.env
+*.keystore
+*.jks
+key.properties
