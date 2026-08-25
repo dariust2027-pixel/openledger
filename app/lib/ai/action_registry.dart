@@ -2,9 +2,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../db/database.dart';
 import '../db/providers.dart';
 import '../data/customer_repository.dart';
+import '../data/documents_repository.dart';
 import '../data/expense_repository.dart';
 import '../data/invoice_repository.dart' as inv show InvoiceLineInput, InvoiceRepository;
 import '../data/invoice_repository.dart' show invoiceRepoProvider;
+import '../data/items_repository.dart';
+import '../data/vendors_repository.dart';
 import 'llm_provider.dart';
 
 /// Every capability of the app, exposed once as a typed tool.
@@ -13,9 +16,13 @@ class ActionRegistry {
   final CustomerRepository customers;
   final inv.InvoiceRepository invoices;
   final ExpenseRepository expenses;
+  final ItemRepository items;
+  final VendorRepository vendors;
+  final DocumentRepository documents;
   final AppDatabase db;
 
-  ActionRegistry(this.customers, this.invoices, this.expenses, this.db);
+  ActionRegistry(this.customers, this.invoices, this.expenses, this.items,
+      this.vendors, this.documents, this.db);
 
   final Map<String, LlmToolDef> _defs = {};
 
@@ -101,6 +108,71 @@ class ActionRegistry {
       'required': ['name'],
     });
 
+    // ---- Phase 9: purchasing, inventory & document tools ----
+
+    _defs['create_vendor'] = LlmToolDef('create_vendor',
+        'Create a vendor/supplier record.', {
+      'type': 'object',
+      'properties': {
+        'name': {'type': 'string'},
+        'email': {'type': 'string'},
+        'phone': {'type': 'string'},
+      },
+      'required': ['name'],
+    });
+
+    _defs['create_item'] = LlmToolDef('create_item',
+        'Create a product/service item. Price in dollars.', {
+      'type': 'object',
+      'properties': {
+        'name': {'type': 'string'},
+        'sku': {'type': 'string'},
+        'unit_price': {'type': 'number', 'description': 'dollars per unit'},
+        'qty_on_hand': {'type': 'number', 'description': 'starting stock, default 0'},
+      },
+      'required': ['name', 'unit_price'],
+    });
+
+    _defs['stock_level'] = LlmToolDef('stock_level',
+        'Check stock for one item (partial name), or list low-stock items '
+        'when no name is given.', {
+      'type': 'object',
+      'properties': {
+        'name': {'type': 'string'},
+      },
+    });
+
+    _defs['create_document'] = LlmToolDef('create_document',
+        'Create a business document: quote, sales_order, purchase_order, bill, '
+        'challan (delivery challan), credit_note or vendor_credit. Created as '
+        'draft. Amounts in dollars. For sales docs give customer; for purchase '
+        'docs give vendor.', {
+      'type': 'object',
+      'properties': {
+        'doc_type': {'type': 'string', 'enum': [
+          'quote', 'sales_order', 'purchase_order', 'bill',
+          'challan', 'credit_note', 'vendor_credit']},
+        'party': {'type': 'string', 'description': 'customer or vendor name'},
+        'lines': {
+          'type': 'array',
+          'items': {
+            'type': 'object',
+            'properties': {
+              'description': {'type': 'string'},
+              'item': {'type': 'string', 'description': 'existing item name to link + move stock'},
+              'qty': {'type': 'number', 'default': 1},
+              'unit_price': {'type': 'number', 'description': 'dollars; omit if item given'},
+              'tax_percent': {'type': 'number', 'default': 0},
+            },
+            'required': ['description'],
+          },
+        },
+        'due_date': {'type': 'string', 'description': 'ISO yyyy-MM-dd'},
+        'notes': {'type': 'string'},
+      },
+      'required': ['doc_type', 'party', 'lines'],
+    });
+
     return _defs.values.toList();
   }
 
@@ -151,6 +223,43 @@ class ActionRegistry {
         return 'Found ${c['name']}'
             '${c['email'] != null ? ' <${c['email']}>' : ''}.';
 
+      case 'create_vendor':
+        await vendors.create(
+          name: args['name'] as String,
+          email: args['email'] as String?,
+          phone: args['phone'] as String?,
+        );
+        return 'Vendor "${args['name']}" created.';
+
+      case 'create_item':
+        final id = await items.create(
+          name: args['name'] as String,
+          sku: args['sku'] as String?,
+          unitPriceMinor: ((args['unit_price'] as num) * 100).round(),
+          qtyOnHand: ((args['qty_on_hand'] ?? 0) as num).toDouble(),
+        );
+        return 'Item "${args['name']}" created ($id).';
+
+      case 'stock_level': {
+        final name = args['name'] as String?;
+        if (name == null || name.isEmpty) {
+          final low = await items.lowStock();
+          if (low.isEmpty) return 'No low-stock items.';
+          return low.map((i) =>
+              '${i['name']}: ${i['qty_on_hand']} on hand').join('\n');
+        }
+        for (final i in await items.all()) {
+          if ((i['name'] as String).toLowerCase().contains(name.toLowerCase())) {
+            return '${i['name']}: ${i['qty_on_hand']} on hand'
+                '${i['sku'] != null ? ' (${i['sku']})' : ''}.';
+          }
+        }
+        return 'No item matching "$name".';
+      }
+
+      case 'create_document':
+        return _createDocument(args);
+
       default:
         throw ArgumentError('unknown tool: $name');
     }
@@ -183,6 +292,75 @@ class ActionRegistry {
     final total = lines.fold<int>(0, (s, l) => s + l.lineTotal);
     return 'Draft invoice created for ${customer['name']} — '
         '\$${(total / 100).toStringAsFixed(2)}, ${lines.length} line(s).';
+  }
+
+  static const _docTypes = {
+    'quote': DocType.quote,
+    'sales_order': DocType.salesOrder,
+    'purchase_order': DocType.purchaseOrder,
+    'bill': DocType.bill,
+    'challan': DocType.challan,
+    'delivery_challan': DocType.challan,
+    'credit_note': DocType.creditNote,
+    'vendor_credit': DocType.vendorCredit,
+  };
+
+  Future<String> _createDocument(Map<String, dynamic> args) async {
+    final type = _docTypes[(args['doc_type'] as String).toLowerCase()];
+    if (type == null) throw StateError('Unknown document type.');
+    if (!type.isSales) {
+      // Purchase-side docs need a vendor.
+      final vendor = await vendors.findByName(args['party'] as String);
+      if (vendor == null) {
+        throw StateError('No vendor named "${args['party']}". Create them first.');
+      }
+      return _buildDoc(type, vendor['id'] as String, vendor['name'] as String, args);
+    }
+    final customer = await customers.findByName(args['party'] as String);
+    if (customer == null) {
+      throw StateError('No customer named "${args['party']}". Create them first.');
+    }
+    return _buildDoc(type, customer['id'] as String, customer['name'] as String, args);
+  }
+
+  Future<String> _buildDoc(
+      DocType type, String partyId, String partyName, Map<String, dynamic> args) async {
+    final lines = <DocLineInput>[];
+    for (final raw in (args['lines'] as List? ?? [])) {
+      final m = raw as Map<String, dynamic>;
+      String? itemId;
+      int unitPriceMinor = 0;
+      final itemName = m['item'] as String?;
+      if (itemName != null) {
+        for (final i in await items.all()) {
+          if ((i['name'] as String).toLowerCase().contains(itemName.toLowerCase())) {
+            itemId = i['id'] as String;
+            unitPriceMinor =
+                m['unit_price'] != null ? ((m['unit_price'] as num) * 100).round() : i['unit_price'] as int;
+            break;
+          }
+        }
+      } else if (m['unit_price'] != null) {
+        unitPriceMinor = ((m['unit_price'] as num) * 100).round();
+      }
+      lines.add(DocLineInput(
+        description: (m['description'] ?? itemName ?? 'Item') as String,
+        qty: ((m['qty'] ?? 1) as num).toDouble(),
+        unitPriceMinor: unitPriceMinor,
+        taxPercent: ((m['tax_percent'] ?? 0) as num).toDouble(),
+        itemId: itemId,
+      ));
+    }
+    final id = await documents.create(
+      type: type,
+      partyId: partyId,
+      lines: lines,
+      dueDate: args['due_date'] as String?,
+      notes: args['notes'] as String?,
+    );
+    final doc = await documents.byId(id);
+    return '${type.label} ${doc?['number']} created for $partyName — '
+        '\$${((doc?['total'] as int) / 100).toStringAsFixed(2)}, draft status.';
   }
 
   Future<String> _monthlySummary() async {
@@ -231,6 +409,9 @@ final actionRegistryProvider = Provider<ActionRegistry>((ref) {
     ref.read(customerRepoProvider),
     ref.read(invoiceRepoProvider),
     ref.read(expenseRepoProvider),
+    ref.read(itemRepoProvider),
+    ref.read(vendorRepoProvider),
+    ref.read(documentRepoProvider),
     ref.read(appDbProvider),
   );
 });

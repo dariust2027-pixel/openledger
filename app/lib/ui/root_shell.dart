@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/documents_repository.dart';
+import 'accountant/journals_screen.dart';
+import 'banking/banking_screen.dart';
 import 'customers/customers_screen.dart';
 import 'documents/documents_screen.dart';
+import 'documents/inbox_screen.dart';
 import 'expenses/expenses_screen.dart';
 import 'home_screen.dart';
 import 'invoices/invoices_screen.dart';
 import 'items/items_screen.dart';
+import 'payments/payments_screen.dart';
 import 'reports/reports_screen.dart';
 import 'settings/settings_screen.dart';
 import 'vendors/vendors_screen.dart';
-import '../data/documents_repository.dart';
 
 class RootShell extends ConsumerStatefulWidget {
   const RootShell({super.key});
@@ -105,8 +109,14 @@ class _ModulesDrawer extends StatelessWidget {
               () => go(const DocumentsScreen(type: DocType.quote))),
           ('Sales Orders', Icons.assignment_outlined,
               () => go(const DocumentsScreen(type: DocType.salesOrder))),
+          ('Delivery Challans', Icons.local_shipping_outlined,
+              () => go(const DocumentsScreen(type: DocType.challan))),
           ('Invoices', Icons.receipt_long_outlined,
               () => go(const InvoicesScreen())),
+          ('Payments Received', Icons.south_west,
+              () => go(const PaymentsScreen(received: true))),
+          ('Credit Notes', Icons.receipt,
+              () => go(const DocumentsScreen(type: DocType.creditNote))),
         ]),
         _section(context, 'Purchases', [
           ('Vendors', Icons.storefront_outlined, () => go(const VendorsScreen())),
@@ -116,6 +126,19 @@ class _ModulesDrawer extends StatelessWidget {
               () => go(const DocumentsScreen(type: DocType.purchaseOrder))),
           ('Bills', Icons.receipt_outlined,
               () => go(const DocumentsScreen(type: DocType.bill))),
+          ('Payments Made', Icons.north_east,
+              () => go(const PaymentsScreen(received: false))),
+          ('Vendor Credits', Icons.receipt,
+              () => go(const DocumentsScreen(type: DocType.vendorCredit))),
+        ]),
+        _section(context, 'Accountant', [
+          ('Banking', Icons.account_balance_outlined,
+              () => go(const BankingScreen())),
+          ('Manual Journals', Icons.balance,
+              () => go(const JournalsScreen())),
+        ]),
+        _section(context, 'Documents', [
+          ('Inbox & Files', Icons.folder_outlined, () => go(const InboxScreen())),
         ]),
       ]),
     );

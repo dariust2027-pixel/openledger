@@ -7,7 +7,7 @@ import 'invoice_repository.dart' show invoiceRepoProvider;
 import 'items_repository.dart';
 import 'ops.dart';
 
-enum DocType { quote, salesOrder, purchaseOrder, bill }
+enum DocType { quote, salesOrder, purchaseOrder, bill, challan, creditNote, vendorCredit }
 
 extension DocTypeX on DocType {
   String get sqlName => switch (this) {
@@ -15,16 +15,27 @@ extension DocTypeX on DocType {
         DocType.salesOrder => 'sales_order',
         DocType.purchaseOrder => 'purchase_order',
         DocType.bill => 'bill',
+        DocType.challan => 'challan',
+        DocType.creditNote => 'credit_note',
+        DocType.vendorCredit => 'vendor_credit',
       };
   String get label => switch (this) {
         DocType.quote => 'Quote',
         DocType.salesOrder => 'Sales Order',
         DocType.purchaseOrder => 'Purchase Order',
         DocType.bill => 'Bill',
+        DocType.challan => 'Delivery Challan',
+        DocType.creditNote => 'Credit Note',
+        DocType.vendorCredit => 'Vendor Credit',
       };
-  /// Sales docs reference customers; purchasing docs reference vendors.
-  bool get isSales =>
-      this == DocType.quote || this == DocType.salesOrder;
+  /// Sales-side docs reference customers; purchase-side reference vendors.
+  bool get isSales => switch (this) {
+        DocType.quote => true,
+        DocType.salesOrder => true,
+        DocType.challan => true,
+        DocType.creditNote => true,
+        _ => false,
+      };
 }
 
 class DocLineInput {
@@ -63,6 +74,9 @@ class DocumentRepository {
         DocType.salesOrder => 'SO',
         DocType.purchaseOrder => 'PO',
         DocType.bill => 'BILL',
+        DocType.challan => 'DC',
+        DocType.creditNote => 'CN',
+        DocType.vendorCredit => 'VC',
       };
 
   Future<String> _nextNumber(DocType t) async {
@@ -128,12 +142,21 @@ class DocumentRepository {
         pos++;
       }
       // Stock movements:
-      //   bill (stock purchase)  -> stock IN
-      //   purchase order         -> nothing until goods received
-      //   quote / sales order    -> nothing until invoiced
-      if (type == DocType.bill) {
-        for (final l in lines.where((l) => l.itemId != null)) {
-          await items.adjustStock(l.itemId!, l.qty);
+      //   bill            -> stock IN (goods purchased)
+      //   challan         -> stock OUT (goods shipped)
+      //   credit note     -> stock IN (sales return)
+      //   vendor credit   -> stock OUT (purchase return)
+      //   quote / SO / PO -> nothing until converted/fulfilled
+      for (final l in lines.where((l) => l.itemId != null)) {
+        switch (type) {
+          case DocType.bill:
+          case DocType.creditNote:
+            await items.adjustStock(l.itemId!, l.qty);
+          case DocType.challan:
+          case DocType.vendorCredit:
+            await items.adjustStock(l.itemId!, -l.qty);
+          default:
+            break;
         }
       }
       await logOp(db, entity: 'documents', entityId: id, opType: 'create', payload: {

@@ -16,6 +16,9 @@ class DocumentsScreen extends ConsumerWidget {
         DocType.salesOrder => 'Sales Orders',
         DocType.purchaseOrder => 'Purchase Orders',
         DocType.bill => 'Bills',
+        DocType.challan => 'Delivery Challans',
+        DocType.creditNote => 'Credit Notes',
+        DocType.vendorCredit => 'Vendor Credits',
       };
 
   @override

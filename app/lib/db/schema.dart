@@ -242,6 +242,39 @@ class Schema {
     _idxInvoiceLinesItem,
   ];
 
+  /* -------------------- v3: accountant / manual journals -------------------- */
+
+  static const _journals = '''
+  CREATE TABLE IF NOT EXISTS journals (
+    id TEXT PRIMARY KEY,
+    date TEXT NOT NULL,
+    narration TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )''';
+
+  /// Double-entry lines: exactly two lines per MVP entry (debit + credit),
+  /// each tied to a category acting as its ledger account.
+  static const _journalLines = '''
+  CREATE TABLE IF NOT EXISTS journal_lines (
+    id TEXT PRIMARY KEY,
+    journal_id TEXT NOT NULL REFERENCES journals(id) ON DELETE CASCADE,
+    category_id TEXT NOT NULL REFERENCES categories(id),
+    side TEXT NOT NULL,           -- debit | credit
+    amount INTEGER NOT NULL
+  )''';
+
+  static const _idxJournalLinesJournal =
+      'CREATE INDEX IF NOT EXISTS idx_journal_lines_journal ON journal_lines(journal_id)';
+
+  static const statementsV3 = [
+    _journals,
+    _journalLines,
+    _idxJournalLinesJournal,
+  ];
+
   static const _idxInvoicesStatus =
       'CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status)';
   static const _idxInvoicesCustomer =
