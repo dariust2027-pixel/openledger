@@ -15,9 +15,8 @@
 ## Remaining roadmap (in priority order)
 
 ### P1 — correctness before scale
-1. **Invoice/doc number collisions on sync** — two devices can both mint INV-0001.
-   Fix: device-prefixed numbers (e.g. `INV-{deviceTag}-0001`) or server-allocated sequences.
-2. **Server-side op validation** — Go server accepts any pushed op payload; add schema/type checks per entity before applying.
+1. ~~**Invoice/doc number collisions on sync**~~ — DONE in v0.5.1: every number carries a per-device tag (`INV-A1B2-0001`).
+2. ~~**Server-side op validation**~~ — DONE in v0.5.2 (`server/validate.go`): entity/op-type allowlists, payload structure + size limits, create-id ↔ entity_id agreement, negative-amount rejection, batch cap; invalid ops rejected without consuming seq. Push response now includes `rejected` count.
 3. **Local DB encryption** — SQLCipher promised, not built.
 
 ### P2 — Zoho parity gaps still missing
