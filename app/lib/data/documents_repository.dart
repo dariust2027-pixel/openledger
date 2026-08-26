@@ -84,7 +84,9 @@ class DocumentRepository {
     final v = await db.getSetting<String>(key, '1');
     final n = int.tryParse(v) ?? 1;
     await db.setSetting(key, '${n + 1}');
-    return '${_prefix(t)}-${n.toString().padLeft(4, '0')}';
+    // Device tag keeps numbers unique across synced devices.
+    final tag = await db.deviceTag();
+    return '${_prefix(t)}-$tag-${n.toString().padLeft(4, '0')}';
   }
 
   Stream<List<Map<String, dynamic>>> watchByType(DocType t, {String? partyJoin}) => db

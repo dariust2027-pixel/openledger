@@ -72,7 +72,9 @@ class InvoiceRepository {
     final v = await db.getSetting<String>('invoice_next_number', '1');
     final n = int.tryParse(v) ?? 1;
     await db.setSetting('invoice_next_number', '${n + 1}');
-    return 'INV-${n.toString().padLeft(4, '0')}';
+    // Device tag keeps numbers unique across synced devices.
+    final tag = await db.deviceTag();
+    return 'INV-$tag-${n.toString().padLeft(4, '0')}';
   }
 
   Future<InvoiceTotals> previewTotals(List<InvoiceLineInput> lines) async =>

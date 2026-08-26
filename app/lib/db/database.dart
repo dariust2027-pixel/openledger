@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -83,6 +84,20 @@ class AppDatabase extends GeneratedDatabase {
 
   Future<void> exec(String sql, [List<Object?> args = const []]) =>
       customStatement(sql, args);
+
+  /// Stable per-device identity used to prefix document numbers so two
+  /// offline devices can never mint the same number (INV-A1B2-0007 vs
+  /// INV-C3D4-0001). Generated once, then persisted in settings.
+  Future<String> deviceTag() async {
+    final existing = await getSetting<String>('device_tag', '');
+    if (existing.isNotEmpty) return existing;
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final rnd = Random.secure();
+    final tag = String.fromCharCodes(
+        List.generate(4, (_) => alphabet.codeUnitAt(rnd.nextInt(alphabet.length))));
+    await setSetting('device_tag', tag);
+    return tag;
+  }
 }
 
 LazyDatabase _open() {
