@@ -20,12 +20,12 @@
 3. ~~**Local DB encryption**~~ — DONE in v0.6.0 (`app/lib/db/encryption.dart`): SQLCipher via sqlcipher_flutter_libs, 256-bit key in flutter_secure_storage (keystore/keychain), legacy plaintext DBs auto-migrated on first launch via `sqlcipher_export`.
 
 ### P2 — Zoho parity gaps still missing
-4. **Blob sync channel** — receipt images don't sync across devices (op-log is text only). Needs multipart upload endpoint + CDN/local storage.
-5. **PDF viewer in Documents inbox** — currently a stub snackbar; integrate `flutter_pdfview` or similar.
-6. **Multi-line document forms** — doc form sheet supports a single line item; extend to N lines.
-7. **Credit note ↔ invoice linking** — apply CN against an invoice to reduce its balance (currently standalone docs).
+4. ~~**Blob sync channel**~~ — DONE in v0.7.0: receipts upload to `/v1/blobs` (tenant-isolated, 10 MB cap) before their ops push; remote devices download on apply. Expense form + scan flow now attach photos; Documents inbox resolves synced paths.
+5. ~~**PDF viewer in Documents inbox**~~ — DONE in v0.6.0 (flutter_pdfview).
+6. ~~**Multi-line document forms**~~ — DONE in v0.6.0.
+7. ~~**Credit note ↔ invoice linking**~~ — DONE in v0.7.0: "Apply to invoice" on credit notes; balances subtract applied credits (schema v4 `applied_invoice_id`). Vendor credits ↔ bills not yet linked.
 8. **Bank reconciliation rules** — match imported bank statements to payments/expenses.
-9. **COGS + inventory valuation report** — stock movements exist; no cost-of-goods reporting yet.
+9. ~~**COGS + inventory valuation report**~~ — DONE in v0.7.0: per-item cost (`cost_minor`), Inventory & COGS screen with revenue/COGS/margin breakdown.
 
 ### P3 — polish
 10. Recurring bills/quotes (recurring invoices already done).
