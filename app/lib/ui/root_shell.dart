@@ -12,6 +12,7 @@ import 'home_screen.dart';
 import 'invoices/invoices_screen.dart';
 import 'items/items_screen.dart';
 import 'payments/payments_screen.dart';
+import 'reports/cogs_screen.dart';
 import 'reports/reports_screen.dart';
 import 'settings/settings_screen.dart';
 import 'vendors/vendors_screen.dart';
@@ -136,6 +137,8 @@ class _ModulesDrawer extends StatelessWidget {
               () => go(const BankingScreen())),
           ('Manual Journals', Icons.balance,
               () => go(const JournalsScreen())),
+          ('Inventory & COGS', Icons.trending_up,
+              () => go(const CogsScreen())),
         ]),
         _section(context, 'Documents', [
           ('Inbox & Files', Icons.folder_outlined, () => go(const InboxScreen())),

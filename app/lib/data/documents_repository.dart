@@ -179,6 +179,30 @@ class DocumentRepository {
         payload: {'status': status});
   }
 
+  /// Links a credit note to an invoice so it reduces the invoice's
+  /// outstanding balance (sales return flow).
+  Future<void> applyToInvoice(String creditNoteId, String invoiceId) async {
+    await db.exec(
+      'UPDATE documents SET applied_invoice_id = ?, status = \'applied\', '
+      'updated_at = ? WHERE id = ?',
+      [invoiceId, nowMs(), creditNoteId],
+    );
+    await logOp(db, entity: 'documents', entityId: creditNoteId, opType: 'update',
+        payload: {'applied_invoice_id': invoiceId, 'status': 'applied'});
+  }
+
+  /// Open invoices for a customer with their remaining balance after
+  /// payments and any applied credit notes.
+  Future<List<Map<String, dynamic>>> openInvoicesForParty(String customerId) => db.rows('''
+    SELECT i.id, i.number, i.total, c.name AS customer_name,
+      i.total - IFNULL((SELECT SUM(amount) FROM payments p WHERE p.invoice_id = i.id), 0)
+             - IFNULL((SELECT SUM(d.total) FROM documents d
+                       WHERE d.applied_invoice_id = i.id AND d.doc_type = 'credit_note'), 0)
+      AS balance
+    FROM invoices i LEFT JOIN customers c ON c.id = i.customer_id
+    WHERE i.customer_id = ? AND i.status IN ('sent', 'partial')
+    ORDER BY i.due_date''', [customerId]);
+
   Future<int> paidAmount(String docId) async {
     final rs = await db.rows(
         'SELECT COALESCE(SUM(amount),0) AS p FROM payments WHERE doc_id = ?', [docId]);

@@ -18,7 +18,7 @@ class AppDatabase extends GeneratedDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   // All schema lives in raw SQL (see schema.dart); drift only provides
   // connectivity, transactions and reactive queries here.
@@ -28,14 +28,29 @@ class AppDatabase extends GeneratedDatabase {
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
-          for (final sql in Schema.statements) {
-            await customStatement(sql);
+          // Run the full history (v1 tables + every later step) so fresh
+          // installs always end up on the current schema. Each statement is
+          // individually tolerant because later ALTERs may already be covered
+          // by fresh-install DDL.
+          final all = [
+            ...Schema.statements,
+            ...Schema.statementsV2,
+            ...Schema.statementsV3,
+            ...Schema.statementsV4,
+          ];
+          for (final sql in all) {
+            try {
+              await customStatement(sql);
+            } catch (_) {
+              // Idempotent: skip statements that don't apply.
+            }
           }
         },
         onUpgrade: (m, from, to) async {
           final steps = <int, List<String>>{
             2: Schema.statementsV2,
             3: Schema.statementsV3,
+            4: Schema.statementsV4,
           };
           for (final entry in steps.entries) {
             if (from < entry.key) {

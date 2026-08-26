@@ -91,7 +91,8 @@ Future<void> startScanFlow(BuildContext context, WidgetRef ref) async {
         prefillAmount: doc?.amount,
         prefillVendor: doc?.vendor,
         prefillDate: doc?.date,
-        prefillCategoryHint: doc?.categoryHint);
+        prefillCategoryHint: doc?.categoryHint,
+        prefillReceiptPath: picked);
   } on OcrUnavailableException catch (e) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));

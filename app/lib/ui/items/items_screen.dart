@@ -56,6 +56,10 @@ class ItemsScreen extends ConsumerWidget {
             : '');
     final qtyCtrl = TextEditingController(
         text: existing?['qty_on_hand']?.toString() ?? '0');
+    final costCtrl = TextEditingController(
+        text: existing != null && existing['cost_minor'] != null
+            ? ((existing['cost_minor'] as int) / 100).toStringAsFixed(2)
+            : '');
 
     return showModalBottomSheet(
       context: context,
@@ -80,6 +84,12 @@ class ItemsScreen extends ConsumerWidget {
                 decoration: const InputDecoration(labelText: 'Sale price \$'))),
             const SizedBox(width: 8),
             Expanded(child: TextField(
+                controller: costCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Cost \$')),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(
                 controller: qtyCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(labelText: 'Stock qty'))),
@@ -95,14 +105,18 @@ class ItemsScreen extends ConsumerWidget {
               final qty = double.tryParse(qtyCtrl.text) ?? 0;
               if (name.isEmpty || price == null) return;
               final repo = ref.read(itemRepoProvider);
+              final cost = double.tryParse(
+                  costCtrl.text.replaceAll(RegExp(r'[^0-9.]'), ''));
               if (existing == null) {
                 await repo.create(name: name,
                     sku: skuCtrl.text.trim().isEmpty ? null : skuCtrl.text.trim(),
-                    unitPriceMinor: (price * 100).round(), qtyOnHand: qty);
+                    unitPriceMinor: (price * 100).round(), qtyOnHand: qty,
+                    costMinor: ((cost ?? 0) * 100).round());
               } else {
                 await repo.update(existing['id'] as String, name: name,
                     sku: skuCtrl.text.trim(),
-                    unitPriceMinor: (price * 100).round(), qtyOnHand: qty);
+                    unitPriceMinor: (price * 100).round(), qtyOnHand: qty,
+                    costMinor: cost == null ? null : (cost * 100).round());
               }
               if (ctx.mounted) Navigator.pop(ctx);
             },

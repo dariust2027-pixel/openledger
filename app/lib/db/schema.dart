@@ -275,6 +275,24 @@ class Schema {
     _idxJournalLinesJournal,
   ];
 
+  /* -------------------- v4: credit-note links + COGS -------------------- */
+
+  /// Credit notes applied against an invoice reduce its outstanding balance.
+  static const v4AlterDocumentsAppliedInvoice =
+      'ALTER TABLE documents ADD COLUMN applied_invoice_id TEXT';
+  static const _idxDocumentsAppliedInvoice =
+      'CREATE INDEX IF NOT EXISTS idx_documents_applied ON documents(applied_invoice_id)';
+
+  /// Per-item acquisition cost for COGS reporting.
+  static const v4AlterItemsCost =
+      'ALTER TABLE items ADD COLUMN cost_minor INTEGER NOT NULL DEFAULT 0';
+
+  static const statementsV4 = [
+    v4AlterDocumentsAppliedInvoice,
+    _idxDocumentsAppliedInvoice,
+    v4AlterItemsCost,
+  ];
+
   static const _idxInvoicesStatus =
       'CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status)';
   static const _idxInvoicesCustomer =

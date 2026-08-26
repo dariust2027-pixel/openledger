@@ -62,6 +62,11 @@ func registerHandlers(mux *http.ServeMux, s *Store) {
 
 	mux.HandleFunc("/v1/ai/proxy", requireMethod(http.MethodPost, withAuth(s, s.handleAIProxy)))
 
+	// Binary attachments (receipts, scans) — uploaded before the op that
+	// references them is pushed.
+	mux.HandleFunc("POST /v1/blobs", withAuth(s, handleBlobUpload(s)))
+	mux.HandleFunc("GET /v1/blobs/{id}", withAuth(s, handleBlobDownload(s)))
+
 	mux.HandleFunc("/v1/stripe/webhook", requireMethod(http.MethodPost, handleStripeWebhook(s)))
 
 	mux.HandleFunc("/v1/account", requireMethod(http.MethodGet, withAuth(s,

@@ -24,30 +24,32 @@ class ItemRepository {
     String? sku,
     required int unitPriceMinor,
     required double qtyOnHand,
-    double? costMinor,
+    int costMinor = 0,
   }) async {
     final id = newId();
     final now = nowMs();
     await db.exec(
-      'INSERT INTO items (id, name, sku, unit_price, qty_on_hand, created_at, updated_at) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, name, sku, unitPriceMinor, qtyOnHand, now, now],
+      'INSERT INTO items (id, name, sku, unit_price, qty_on_hand, cost_minor, created_at, updated_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, name, sku, unitPriceMinor, qtyOnHand, costMinor, now, now],
     );
     await logOp(db, entity: 'items', entityId: id, opType: 'create', payload: {
       'id': id, 'name': name, 'sku': sku, 'unit_price': unitPriceMinor,
-      'qty_on_hand': qtyOnHand, 'created_at': now, 'updated_at': now,
+      'qty_on_hand': qtyOnHand, 'cost_minor': costMinor,
+      'created_at': now, 'updated_at': now,
     });
     return id;
   }
 
   Future<void> update(String id,
-      {String? name, String? sku, int? unitPriceMinor, double? qtyOnHand}) async {
+      {String? name, String? sku, int? unitPriceMinor, double? qtyOnHand, int? costMinor}) async {
     await db.exec(
       '''UPDATE items SET
          name = COALESCE(?, name), sku = COALESCE(?, sku),
          unit_price = COALESCE(?, unit_price), qty_on_hand = COALESCE(?, qty_on_hand),
-         updated_at = ? WHERE id = ?''',
-      [name, sku, unitPriceMinor, qtyOnHand, nowMs(), id],
+         cost_minor = COALESCE(?, cost_minor), updated_at = ?
+         WHERE id = ?''',
+      [name, sku, unitPriceMinor, qtyOnHand, costMinor, nowMs(), id],
     );
     final row = await byId(id);
     if (row != null) {

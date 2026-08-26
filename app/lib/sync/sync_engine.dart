@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 import '../db/database.dart';
 import '../db/providers.dart';
+import '../data/customer_repository.dart' show newId;
 
 /// Client half of the Phase-4 sync protocol.
 ///
@@ -158,6 +161,10 @@ class SyncEngine extends Notifier<SyncState> {
         'FROM ops_log WHERE synced = 0 ORDER BY ts LIMIT 200');
     if (ops.isEmpty) return;
 
+    // Binary attachments referenced by these ops go up first so remote
+    // devices never see an op pointing at a missing blob.
+    await _uploadReferencedBlobs(ops);
+
     final body = jsonEncode({
       'ops': [
         for (final o in ops)
@@ -193,6 +200,69 @@ class SyncEngine extends Notifier<SyncState> {
     await db.exec(
         'UPDATE ops_log SET synced = 1 WHERE id IN (${ids.map((_) => '?').join(',')})',
         ids);
+  }
+
+  /// Blob channel: receipt paths are stored relative to the app documents
+  /// dir (`receipts/<uuid>.<ext>`); the file name is the blob id.
+  Future<void> _uploadReferencedBlobs(List<Map<String, dynamic>> ops) async {
+    final names = <String>{};
+    for (final o in ops) {
+      final raw = o['payload_json'];
+      if (raw is! String) continue;
+      try {
+        final p = jsonDecode(raw);
+        if (p is Map) {
+          final rp = p['receipt_path'];
+          if (rp is String && rp.startsWith('receipts/')) names.add(rp);
+        }
+      } catch (_) {}
+    }
+    for (final rel in names) {
+      final marker = await ref
+          .read(appDbProvider)
+          .getSetting<String>('blob_uploaded_$rel', '');
+      if (marker == '1') continue;
+      try {
+        await uploadBlobFile(rel);
+        await ref.read(appDbProvider).setSetting('blob_uploaded_$rel', '1');
+      } catch (_) {
+        // Leave unmarked; retried on next sync.
+      }
+    }
+  }
+
+  /// Uploads one local attachment under its relative path as blob id.
+  Future<void> uploadBlobFile(String relativePath) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final f = File('${dir.path}/$relativePath');
+    if (!await f.exists()) throw Exception('blob file missing: $relativePath');
+    final res = await (_client ??= http.Client()).post(
+      Uri.parse('$_serverUrl/v1/blobs'),
+      headers: {
+        'Authorization': 'Bearer $_deviceToken',
+        'X-Blob-Id': relativePath.split('/').last,
+        'Content-Type': 'application/octet-stream',
+      },
+      body: await f.readAsBytes(),
+    ).timeout(const Duration(seconds: 30));
+    if (res.statusCode != 201) {
+      throw Exception('blob upload failed ${res.statusCode}');
+    }
+  }
+
+  Future<void> downloadBlob(String blobId, String relativePath) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final f = File('${dir.path}/$relativePath');
+    if (await f.exists()) return;
+    final res = await (_client ??= http.Client()).get(
+      Uri.parse('$_serverUrl/v1/blobs/$blobId'),
+      headers: {'Authorization': 'Bearer $_deviceToken'},
+    ).timeout(const Duration(seconds: 30));
+    if (res.statusCode != 200) {
+      throw Exception('blob download failed ${res.statusCode}');
+    }
+    await f.parent.create(recursive: true);
+    await f.writeAsBytes(res.bodyBytes);
   }
 
   Future<void> _pullRemote() async {
@@ -261,6 +331,15 @@ class SyncEngine extends Notifier<SyncState> {
           'date', 'vendor', 'category_id', 'description', 'amount',
           'tax_amount', 'currency', 'payment_method', 'receipt_path', 'billable'
         ]);
+        // Fetch the referenced receipt if we don't have it yet.
+        final rp = payloadMap['receipt_path'];
+        if (rp is String && rp.startsWith('receipts/')) {
+          try {
+            await downloadBlob(rp.split('/').last, rp);
+          } catch (_) {
+            // Missing blob (server offline?) — retried next pull cycle.
+          }
+        }
         break;
       case 'payments':
         await db.exec(
@@ -302,6 +381,46 @@ class SyncEngine extends Notifier<SyncState> {
                 [m['id'], m['invoice_id'], m['description'], m['qty'],
                  m['unit_price'], m['tax_percent'], m['line_total'], m['position']],
               );
+            }
+          });
+        }
+        break;
+      case 'documents':
+        // Upsert document header + replace lines (quotes/POs/bills/credit
+        // notes etc), mirroring the invoice flow.
+        final upd = payloadMap['updated_at'];
+        if (upd is int && await _isNewer(db, 'documents', op['entity_id'] as String, upd)) {
+          await db.transaction(() async {
+            await db.exec('DELETE FROM document_lines WHERE document_id = ?', [op['entity_id']]);
+            await db.exec(
+              'INSERT INTO documents (id, doc_type, number, party_id, status, date, due_date, '
+              'currency, subtotal, tax_total, total, notes, created_at, updated_at) '
+              'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+              'ON CONFLICT(id) DO UPDATE SET status=excluded.status, due_date=excluded.due_date, '
+              'subtotal=excluded.subtotal, tax_total=excluded.tax_total, total=excluded.total, '
+              'notes=excluded.notes, updated_at=excluded.updated_at',
+              [
+                payloadMap['id'], payloadMap['doc_type'], payloadMap['number'],
+                payloadMap['party_id'], payloadMap['status'], payloadMap['date'],
+                payloadMap['due_date'], payloadMap['currency'], payloadMap['subtotal'],
+                payloadMap['tax_total'], payloadMap['total'], payloadMap['notes'],
+                payloadMap['created_at'], upd,
+              ],
+            );
+            var pos = 0;
+            for (final l in (payloadMap['lines'] as List? ?? [])) {
+              final m = (l as Map).cast<String, dynamic>();
+              await db.exec(
+                'INSERT INTO document_lines (id, document_id, item_id, description, qty, '
+                'unit_price, tax_percent, line_total, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [newId(), m['invoice_id'] ?? op['entity_id'], m['item_id'],
+                 m['description'], m['qty'], m['unit_price'], m['tax_percent'],
+                 m['qty'] is num && m['unit_price'] is num
+                     ? ((m['qty'] as num) * (m['unit_price'] as num)).round()
+                     : 0,
+                 pos],
+              );
+              pos++;
             }
           });
         }

@@ -186,9 +186,13 @@ class InvoiceRepository {
   }
 
   Future<List<Map<String, dynamic>>> unpaid() => db
-      .rows("SELECT i.*, c.name AS customer_name FROM invoices i "
-          "LEFT JOIN customers c ON c.id = i.customer_id "
-          "WHERE i.status IN ('sent','partial') ORDER BY i.due_date");
+      .rows("""SELECT i.*, c.name AS customer_name,
+          i.total - IFNULL((SELECT SUM(amount) FROM payments p WHERE p.invoice_id = i.id), 0)
+                 - IFNULL((SELECT SUM(d.total) FROM documents d
+                           WHERE d.applied_invoice_id = i.id AND d.doc_type = 'credit_note'), 0)
+            AS balance
+        FROM invoices i LEFT JOIN customers c ON c.id = i.customer_id
+        WHERE i.status IN ('sent','partial') ORDER BY i.due_date""");
 }
 
 final invoiceRepoProvider =

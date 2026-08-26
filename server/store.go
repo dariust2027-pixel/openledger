@@ -19,6 +19,7 @@ type Store struct {
 	path     string
 	devices  map[string]Device   // token -> device
 	accounts map[string]Account  // account id -> account
+	blobs    map[string]BlobInfo // blob id -> metadata (files on disk)
 	ops      []Op                // ordered by Seq, scoped by AccountID
 	seq      int64
 }
@@ -54,6 +55,7 @@ func NewStore(path string) *Store {
 		path:     path,
 		devices:  map[string]Device{},
 		accounts: map[string]Account{},
+		blobs:    map[string]BlobInfo{},
 	}
 	s.load()
 	if _, ok := s.accounts[defaultAccountID]; !ok {
@@ -78,10 +80,11 @@ func (s *Store) load() {
 		return // fresh store
 	}
 	var snapshot struct {
-		Devices  []Device  `json:"devices"`
-		Accounts []Account `json:"accounts"`
-		Ops      []Op      `json:"ops"`
-		Seq      int64     `json:"seq"`
+		Devices  []Device        `json:"devices"`
+		Accounts []Account       `json:"accounts"`
+		Blobs    map[string]BlobInfo `json:"blobs"`
+		Ops      []Op            `json:"ops"`
+		Seq      int64           `json:"seq"`
 	}
 	if json.Unmarshal(data, &snapshot) != nil {
 		return
@@ -92,6 +95,7 @@ func (s *Store) load() {
 	for _, a := range snapshot.Accounts {
 		s.accounts[a.ID] = a
 	}
+	s.blobs = snapshot.Blobs
 	s.ops = snapshot.Ops
 	s.seq = snapshot.Seq
 }
@@ -109,11 +113,12 @@ func (s *Store) persistLocked() {
 		accounts = append(accounts, a)
 	}
 	snapshot := struct {
-		Devices  []Device  `json:"devices"`
-		Accounts []Account `json:"accounts"`
-		Ops      []Op      `json:"ops"`
-		Seq      int64     `json:"seq"`
-	}{devices, accounts, s.ops, s.seq}
+		Devices  []Device            `json:"devices"`
+		Accounts []Account           `json:"accounts"`
+		Blobs    map[string]BlobInfo `json:"blobs"`
+		Ops      []Op                `json:"ops"`
+		Seq      int64               `json:"seq"`
+	}{devices, accounts, s.blobs, s.ops, s.seq}
 
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return

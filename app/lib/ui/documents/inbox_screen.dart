@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../db/providers.dart';
+import '../../data/receipt_store.dart';
 
 /// Documents / Inbox: every file the app has captured — scanned receipts,
 /// attached images. Tap to view full-screen.
@@ -75,7 +76,8 @@ class InboxScreen extends ConsumerWidget {
   }
 }
 
-/// Sources: receipt images attached to expenses + any exported invoice PDFs.
+/// Sources: receipt images attached to expenses (relative 'receipts/' paths
+/// synced via the blob channel, plus legacy absolute paths).
 final _filesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final db = ref.watch(appDbProvider);
   final receipts = await db.rows(
@@ -83,7 +85,8 @@ final _filesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((r
       'FROM expenses WHERE receipt_path IS NOT NULL ORDER BY date DESC');
   final existing = <Map<String, dynamic>>[];
   for (final r in receipts) {
-    if (await File(r['path'] as String).exists()) existing.add(r);
+    final resolved = await ReceiptStore.resolve(r['path'] as String?);
+    if (resolved != null) existing.add({...r, 'path': resolved});
   }
   return existing;
 });

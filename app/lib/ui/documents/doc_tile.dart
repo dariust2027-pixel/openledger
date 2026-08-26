@@ -103,10 +103,57 @@ class DocTile extends ConsumerWidget {
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                 },
               ),
+            if (type == DocType.creditNote && doc['applied_invoice_id'] == null)
+              FilledButton.icon(
+                icon: const Icon(Icons.receipt_long, size: 18),
+                label: const Text('Apply to invoice'),
+                onPressed: () => _applyToInvoice(sheetCtx, ref),
+              ),
+            if (doc['applied_invoice_id'] != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('Applied to an invoice — reduces its balance.',
+                    style: Theme.of(sheetCtx).textTheme.bodySmall),
+              ),
           ]),
         ]),
       ),
     );
+  }
+
+  /// Lets the user pick one of the customer's open invoices and links this
+  /// credit note against it.
+  Future<void> _applyToInvoice(BuildContext sheetCtx, WidgetRef ref) async {
+    final repo = ref.read(documentRepoProvider);
+    final invoices = await repo
+        .openInvoicesForParty(doc['party_id'] as String);
+    if (!sheetCtx.mounted) return;
+    if (invoices.isEmpty) {
+      ScaffoldMessenger.of(sheetCtx).showSnackBar(const SnackBar(
+          content: Text('This customer has no open invoices to credit.')));
+      return;
+    }
+    final picked = await showDialog<Map<String, dynamic>>(
+      context: sheetCtx,
+      builder: (dlgCtx) => SimpleDialog(
+        title: const Text('Apply credit to which invoice?'),
+        children: [
+          for (final inv in invoices)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dlgCtx, inv),
+              child: Text('${inv['number']} — balance '
+                  '${Currencies.format(inv['balance'] as int)}'),
+            ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    await repo.applyToInvoice(doc['id'] as String, picked['id'] as String);
+    if (sheetCtx.mounted) {
+      Navigator.pop(sheetCtx);
+      ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(
+          content: Text('Credit applied to ${picked['number']}.')));
+    }
   }
 
   Future<double?> _askAmount(BuildContext sheetCtx) {
