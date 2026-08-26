@@ -35,10 +35,15 @@ func registerHandlers(mux *http.ServeMux, s *Store) {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 				return
 			}
-			cursor, added := s.Push(dev, req.Ops)
+			if err := validateBatch(req.Ops); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+				return
+			}
+			cursor, added, rejected := s.Push(dev, req.Ops)
 			writeJSON(w, http.StatusOK, map[string]any{
 				"cursor":    cursor,
 				"accepted":  added,
+				"rejected":  rejected,
 				"submitted": len(req.Ops),
 			})
 		})))

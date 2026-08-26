@@ -34,9 +34,9 @@ func TestRegisterAndPushPull(t *testing.T) {
 
 	// Push two ops (one duplicate to test idempotency)
 	ops := `{"ops":[
-	  {"id":"op1","entity":"customers","entity_id":"c1","op_type":"create","lamport":1,"ts":1},
-	  {"id":"op2","entity":"expenses","entity_id":"e1","op_type":"create","lamport":2,"ts":2},
-	  {"id":"op1","entity":"customers","entity_id":"c1","op_type":"create","lamport":1,"ts":1}
+	  {"id":"op1","entity":"customers","entity_id":"c1","op_type":"create","lamport":1,"ts":1,"payload":{"id":"c1","name":"Acme"}},
+	  {"id":"op2","entity":"expenses","entity_id":"e1","op_type":"create","lamport":2,"ts":2,"payload":{"id":"e1","amount":1500,"date":"2026-08-26"}},
+	  {"id":"op1","entity":"customers","entity_id":"c1","op_type":"create","lamport":1,"ts":1,"payload":{"id":"c1","name":"Acme"}}
 	]}`
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest("POST", "/v1/ops/push", bytes.NewReader([]byte(ops)))
@@ -85,7 +85,8 @@ func TestPersistenceAcrossRestart(t *testing.T) {
 	path := t.TempDir() + "/data.json"
 	s1 := NewStore(path)
 	d := s1.RegisterDevice("desktop")
-	s1.Push(d, []Op{{ID: "x1", Entity: "invoices", EntityID: "i1", OpType: "create"}})
+	s1.Push(d, []Op{{ID: "x1", Entity: "invoices", EntityID: "i1", OpType: "create",
+		Payload: json.RawMessage(`{"id":"i1","customer_id":"c1","number":"INV-TEST-0001","total":9900}`)}})
 
 	s2 := NewStore(path) // simulate restart
 	if _, ok := s2.Auth(d.Token); !ok {

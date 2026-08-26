@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestTenantIsolation(t *testing.T) {
 	s := NewStore("")
@@ -10,7 +13,8 @@ func TestTenantIsolation(t *testing.T) {
 	d2 := s.RegisterDeviceForAccount("phone-b", a2.ID)
 
 	// Device 1 pushes an op.
-	_, n := s.Push(d1, []Op{{ID: "iso1", Entity: "customers", EntityID: "c1", OpType: "create"}})
+	_, n, _ := s.Push(d1, []Op{{ID: "iso1", Entity: "customers", EntityID: "c1",
+		OpType: "create", Payload: json.RawMessage(`{"id":"c1","name":"Acme"}`)}})
 	if n != 1 {
 		t.Fatalf("push failed")
 	}

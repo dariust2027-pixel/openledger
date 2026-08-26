@@ -165,8 +165,9 @@ func (s *Store) Auth(bearer string) (Device, bool) {
 }
 
 // Push appends operations idempotently (dedup by op ID), assigns sequence
-// numbers, persists and returns the new cursor.
-func (s *Store) Push(device Device, incoming []Op) (int64, int) {
+// numbers, persists and returns the new cursor. Invalid ops are rejected —
+// they never enter the log and never consume sequence numbers.
+func (s *Store) Push(device Device, incoming []Op) (int64, int, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -175,9 +176,15 @@ func (s *Store) Push(device Device, incoming []Op) (int64, int) {
 		seen[o.ID] = true
 	}
 
-	added := 0
+	added, rejected := 0, 0
 	for _, o := range incoming {
 		if seen[o.ID] {
+			continue
+		}
+		// Server-side validation gate: unknown entities, malformed payloads
+		// or oversized ops are dropped before they can poison other devices.
+		if validateOp(o) != nil {
+			rejected++
 			continue
 		}
 		seen[o.ID] = true
@@ -185,14 +192,11 @@ func (s *Store) Push(device Device, incoming []Op) (int64, int) {
 		o.Seq = s.seq
 		o.DeviceID = device.ID // stamped by server, not trusted from client
 		o.AccountID = device.AccountID
-		if o.ID == "" || o.Entity == "" || o.EntityID == "" || o.OpType == "" {
-			continue // reject malformed by skipping (client re-sends corrected)
-		}
 		s.ops = append(s.ops, o)
 		added++
 	}
 	s.persistLocked()
-	return s.seq, added
+	return s.seq, added, rejected
 }
 
 // Pull returns the caller's account ops with Seq > cursor (oldest first),
