@@ -17,7 +17,7 @@
 ### P1 — correctness before scale
 1. ~~**Invoice/doc number collisions on sync**~~ — DONE in v0.5.1: every number carries a per-device tag (`INV-A1B2-0001`).
 2. ~~**Server-side op validation**~~ — DONE in v0.5.2 (`server/validate.go`): entity/op-type allowlists, payload structure + size limits, create-id ↔ entity_id agreement, negative-amount rejection, batch cap; invalid ops rejected without consuming seq. Push response now includes `rejected` count.
-3. **Local DB encryption** — SQLCipher promised, not built.
+3. ~~**Local DB encryption**~~ — DONE in v0.6.0 (`app/lib/db/encryption.dart`): SQLCipher via sqlcipher_flutter_libs, 256-bit key in flutter_secure_storage (keystore/keychain), legacy plaintext DBs auto-migrated on first launch via `sqlcipher_export`.
 
 ### P2 — Zoho parity gaps still missing
 4. **Blob sync channel** — receipt images don't sync across devices (op-log is text only). Needs multipart upload endpoint + CDN/local storage.
