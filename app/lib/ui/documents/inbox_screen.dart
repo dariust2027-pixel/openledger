@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../db/providers.dart';
 
@@ -60,8 +61,9 @@ class InboxScreen extends ConsumerWidget {
   void _openFile(BuildContext context, Map<String, dynamic> f) {
     final path = f['path'] as String;
     if (path.toLowerCase().endsWith('.pdf')) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('PDF viewer arrives with Phase 9 — file at: $path')));
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => PdfViewerScreen(path: path, title: f['label'] as String? ?? 'Document'),
+      ));
       return;
     }
     Navigator.of(context).push(MaterialPageRoute(
@@ -85,3 +87,49 @@ final _filesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((r
   }
   return existing;
 });
+
+/// Full-screen PDF viewer (invoices, exported reports, saved documents).
+class PdfViewerScreen extends StatefulWidget {
+  final String path;
+  final String title;
+  const PdfViewerScreen({super.key, required this.path, required this.title});
+
+  @override
+  State<PdfViewerScreen> createState() => _PdfViewerScreenState();
+}
+
+class _PdfViewerScreenState extends State<PdfViewerScreen> {
+  int _pages = 0;
+  int _page = 1;
+  bool _ready = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.title), actions: [
+        if (_ready && _pages > 1)
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(child: Text('$_page / $_pages')),
+          ),
+      ]),
+      body: PDFView(
+        filePath: widget.path,
+        enableSwipe: true,
+        swipeHorizontal: false,
+        autoSpacing: true,
+        pageFling: true,
+        onPageChanged: (p, total) => setState(() {
+          if (p != null) _page = p + 1;
+          if (total != null) _pages = total;
+        }),
+        onRender: (total) => setState(() {
+          _pages = total ?? 0;
+          _ready = true;
+        }),
+        onError: (e) => ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open PDF: $e'))),
+      ),
+    );
+  }
+}

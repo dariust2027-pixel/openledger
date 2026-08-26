@@ -10,6 +10,7 @@
 #include <flutter_secure_storage_windows/flutter_secure_storage_windows_plugin.h>
 #include <flutter_tts/flutter_tts_plugin.h>
 #include <speech_to_text_windows/speech_to_text_windows.h>
+#include <sqlcipher_flutter_libs/sqlite3_flutter_libs_plugin.h>
 #include <sqlite3_flutter_libs/sqlite3_flutter_libs_plugin.h>
 
 void RegisterPlugins(flutter::PluginRegistry* registry) {
@@ -21,6 +22,8 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("FlutterTtsPlugin"));
   SpeechToTextWindowsRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("SpeechToTextWindows"));
+  Sqlite3FlutterLibsPluginRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("Sqlite3FlutterLibsPlugin"));
   Sqlite3FlutterLibsPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("Sqlite3FlutterLibsPlugin"));
 }

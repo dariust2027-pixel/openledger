@@ -133,10 +133,10 @@ packages:
     dependency: "direct main"
     description:
       name: drift
-      sha256: "3a3f1f6f905037d7426e4c445854139fd6a3d592135f7c96d7931682b73d16f4"
+      sha256: "970cd188fddb111b26ea6a9b07a62bf5c2432d74147b8122c67044ae3b97e99e"
       url: "https://pub.dev"
     source: hosted
-    version: "2.34.3"
+    version: "2.31.0"
   fake_async:
     dependency: transitive
     description:
@@ -153,14 +153,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
-  file:
-    dependency: transitive
-    description:
-      name: file
-      sha256: a3b4f84adafef897088c160faf7dfffb7696046cb13ae90b508c2cbc95d3b8d4
-      url: "https://pub.dev"
-    source: hosted
-    version: "7.0.1"
   file_selector:
     dependency: "direct main"
     description:
@@ -254,6 +246,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
+  flutter_pdfview:
+    dependency: "direct main"
+    description:
+      name: flutter_pdfview
+      sha256: f0d14d51a69dee6ce4a7e8ddf45531b9cd26a5a0b984ff34cb3a2cc36a1355a5
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.5"
   flutter_plugin_android_lifecycle:
     dependency: transitive
     description:
@@ -336,14 +336,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  glob:
-    dependency: transitive
-    description:
-      name: glob
-      sha256: c3f1ee72c96f8f78935e18aa8cecced9ab132419e8625dc187e1c2408efc20de
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.1.3"
   google_mlkit_commons:
     dependency: transitive
     description:
@@ -576,14 +568,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.0"
-  native_toolchain_c:
-    dependency: transitive
-    description:
-      name: native_toolchain_c
-      sha256: f9c168717100ae6d9fee9ffb0be379bf1f8b26b0f6bcbd4fdddcd931993a6a72
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.19.2"
   objective_c:
     dependency: transitive
     description:
@@ -773,14 +757,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.1"
-  sqlite3:
-    dependency: transitive
+  sqlcipher_flutter_libs:
+    dependency: "direct main"
     description:
-      name: sqlite3
-      sha256: "4c7fe79840389aaeaf05fd093f795b631b5a98e2bd28d54e555c100f4a9c7a1c"
+      name: sqlcipher_flutter_libs
+      sha256: dd1fcc74d5baf3c36ad53e2652b2d06c9f8747494a3ccde0076e88b159dfe622
       url: "https://pub.dev"
     source: hosted
-    version: "3.5.2"
+    version: "0.6.8"
+  sqlite3:
+    dependency: "direct main"
+    description:
+      name: sqlite3
+      sha256: "3145bd74dcdb4fd6f5c6dda4d4e4490a8087d7f286a14dee5d37087290f0f8a2"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.9.4"
   sqlite3_flutter_libs:
     dependency: "direct main"
     description:

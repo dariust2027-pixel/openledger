@@ -6,6 +6,7 @@ import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'schema.dart';
+import 'encryption.dart';
 
 /// Local-first database.
 ///
@@ -103,7 +104,21 @@ class AppDatabase extends GeneratedDatabase {
 LazyDatabase _open() {
   return LazyDatabase(() async {
     final dir = await getApplicationDocumentsDirectory();
-    final file = p.join(dir.path, 'openledger.sqlite');
-    return NativeDatabase.createInBackground(File(file));
+    final file = File(p.join(dir.path, 'openledger.sqlite'));
+
+    // Encrypt at rest on mobile: SQLCipher with a keystore-held key.
+    // Legacy plaintext databases are migrated transparently on first open.
+    String? passphrase;
+    if (Platform.isAndroid || Platform.isIOS) {
+      await loadSqlCipherLibrary();
+      passphrase = await getOrCreateDbPassphrase();
+      await migratePlaintextDatabaseIfNeeded(file, passphrase);
+    }
+
+    return NativeDatabase.createInBackground(file, setup: (rawDb) {
+      if (passphrase != null) {
+        rawDb.execute("PRAGMA key = '$passphrase'");
+      }
+    });
   });
 }
